@@ -32,7 +32,13 @@ const (
 	IMAG   // 123.45i
 	CHAR   // 'a'
 	STRING // "abc"
-	literal_end
+
+	// gox tokens
+	OTAG            // <div
+	OTAG_END        // >
+	OTAG_SELF_CLOSE // />
+	CTAG            // </div>
+	BARE_WORDS      // This is inside a tagliteral_end
 
 	operator_beg
 	// Operators and delimiters
@@ -144,6 +150,13 @@ var tokens = [...]string{
 	IMAG:   "IMAG",
 	CHAR:   "CHAR",
 	STRING: "STRING",
+
+	// gox tokens
+	OTAG:            "OTAG",
+	OTAG_END:        "OTAG_END",
+	OTAG_SELF_CLOSE: "OTAG_SELF_CLOSE",
+	CTAG:            "CTAG",
+	BARE_WORDS:      "BARE_WORDS",
 
 	ADD: "+",
 	SUB: "-",
