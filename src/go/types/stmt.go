@@ -928,7 +928,8 @@ func (check *Checker) stmt(ctxt stmtContext, s ast.Stmt) {
 		}
 
 		check.stmt(inner, s.Body)
-
+	case *ast.GoxAttrStmt:
+		check.invalidAST(s, "invalid statement")
 	default:
 		check.invalidAST(s, "invalid statement")
 	}

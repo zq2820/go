@@ -748,7 +748,7 @@ func (s *Scanner) scanCTag() string {
 	for {
 		ch := s.ch
 		if ch == '\n' || ch < 0 {
-			s.error(offs, "tag literal not terminated")
+			s.error(offs, "Tag literal not terminated")
 			break
 		}
 		s.next()
@@ -838,6 +838,11 @@ func (s *Scanner) switch3(tok0, tok1 token.Token, ch2 rune, tok2 token.Token) to
 }
 
 func (s *Scanner) switch4(tok0, tok1 token.Token, ch2 rune, tok2, tok3 token.Token) token.Token {
+	if s.ch == rune('<') && ch2 == rune('>') {
+		s.error(s.offset, "error")
+		return token.EOF
+	}
+
 	if s.ch == '=' {
 		s.next()
 		return tok1
@@ -885,280 +890,16 @@ func (s *Scanner) switch4(tok0, tok1 token.Token, ch2 rune, tok2, tok3 token.Tok
 // and thus relative to the file set.
 //
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-scanAgain:
-	s.skipWhitespace()
-
-	// current token start
-	pos = s.file.Pos(s.offset)
-
-	// determine token value
-	insertSemi := false
-	switch ch := s.ch; {
-	case isLetter(ch):
-		lit = s.scanIdentifier()
-		if len(lit) > 1 {
-			// keywords are longer than one letter - avoid lookup otherwise
-			tok = token.Lookup(lit)
-			switch tok {
-			case token.IDENT, token.BREAK, token.CONTINUE, token.FALLTHROUGH, token.RETURN:
-				insertSemi = true
-			}
-		} else {
-			insertSemi = true
-			tok = token.IDENT
-		}
-	case isDecimal(ch) || ch == '.' && isDecimal(rune(s.peek())):
-		insertSemi = true
-		tok, lit = s.scanNumber()
-	default:
-		s.next() // always make progress
-		switch ch {
-		case -1:
-			if s.insertSemi {
-				s.insertSemi = false // EOF consumed
-				return pos, token.SEMICOLON, "\n"
-			}
-			tok = token.EOF
-		case '\n':
-			// we only reach here if s.insertSemi was
-			// set in the first place and exited early
-			// from s.skipWhitespace()
-			s.insertSemi = false // newline consumed
-			return pos, token.SEMICOLON, "\n"
-		case '"':
-			insertSemi = true
-			tok = token.STRING
-			lit = s.scanString()
-		case '\'':
-			insertSemi = true
-			tok = token.CHAR
-			lit = s.scanRune()
-		case '`':
-			insertSemi = true
-			tok = token.STRING
-			lit = s.scanRawString()
-		case ':':
-			tok = s.switch2(token.COLON, token.DEFINE)
-		case '.':
-			// fractions starting with a '.' are handled by outer switch
-			tok = token.PERIOD
-			if s.ch == '.' && s.peek() == '.' {
-				s.next()
-				s.next() // consume last '.'
-				tok = token.ELLIPSIS
-			}
-		case ',':
-			tok = token.COMMA
-		case ';':
-			tok = token.SEMICOLON
-			lit = ";"
-		case '(':
-			tok = token.LPAREN
-		case ')':
-			insertSemi = true
-			tok = token.RPAREN
-		case '[':
-			tok = token.LBRACK
-		case ']':
-			insertSemi = true
-			tok = token.RBRACK
-		case '{':
-			tok = token.LBRACE
-		case '}':
-			insertSemi = true
-			tok = token.RBRACE
-		case '+':
-			tok = s.switch3(token.ADD, token.ADD_ASSIGN, '+', token.INC)
-			if tok == token.INC {
-				insertSemi = true
-			}
-		case '-':
-			tok = s.switch3(token.SUB, token.SUB_ASSIGN, '-', token.DEC)
-			if tok == token.DEC {
-				insertSemi = true
-			}
-		case '*':
-			tok = s.switch2(token.MUL, token.MUL_ASSIGN)
-		case '/':
-			if s.ch == '/' || s.ch == '*' {
-				// comment
-				if s.insertSemi && s.findLineEnd() {
-					// reset position to the beginning of the comment
-					s.ch = '/'
-					s.offset = s.file.Offset(pos)
-					s.rdOffset = s.offset + 1
-					s.insertSemi = false // newline consumed
-					return pos, token.SEMICOLON, "\n"
-				}
-				comment := s.scanComment()
-				if s.mode&ScanComments == 0 {
-					// skip comment
-					s.insertSemi = false // newline consumed
-					goto scanAgain
-				}
-				tok = token.COMMENT
-				lit = comment
-			} else {
-				tok = s.switch2(token.QUO, token.QUO_ASSIGN)
-			}
-		case '%':
-			tok = s.switch2(token.REM, token.REM_ASSIGN)
-		case '^':
-			tok = s.switch2(token.XOR, token.XOR_ASSIGN)
-		case '<':
-			if s.ch == '-' {
-				s.next()
-				tok = token.ARROW
-			} else {
-				tok = s.switch4(token.LSS, token.LEQ, '<', token.SHL, token.SHL_ASSIGN)
-			}
-		case '>':
-			tok = s.switch4(token.GTR, token.GEQ, '>', token.SHR, token.SHR_ASSIGN)
-		case '=':
-			tok = s.switch2(token.ASSIGN, token.EQL)
-		case '!':
-			tok = s.switch2(token.NOT, token.NEQ)
-		case '&':
-			if s.ch == '^' {
-				s.next()
-				tok = s.switch2(token.AND_NOT, token.AND_NOT_ASSIGN)
-			} else {
-				tok = s.switch3(token.AND, token.AND_ASSIGN, '&', token.LAND)
-			}
-		case '|':
-			tok = s.switch3(token.OR, token.OR_ASSIGN, '|', token.LOR)
-		case '~':
-			tok = token.TILDE
-		default:
-			// next reports unexpected BOMs - don't repeat
-			if ch != bom {
-				s.errorf(s.file.Offset(pos), "illegal character %#U", ch)
-			}
-			insertSemi = s.insertSemi // preserve insertSemi info
-			tok = token.ILLEGAL
-			lit = string(ch)
-		}
+	var f func() (token.Pos, token.Token, string)
+	switch s.goxState.mode {
+	case GO:
+		f = s.scanGoMode
+	case GOX_TAG:
+		f = s.scanGoxTagMode
+	case BARE_WORDS:
+		f = s.scanBareWordsMode
 	}
-	if s.mode&dontInsertSemis == 0 {
-		s.insertSemi = insertSemi
-	}
-
-	return
-}
-
-func (s *Scanner) scanBareWordMode() (pos token.Pos, tok token.Token, lit string) {
-	s.insertSemi = false
-	// Whitespace matters in Bare Words mode, so do not call s.skipWhitespace()
-
-	// current token start
-	pos = s.file.Pos(s.offset)
-
-	switch s.ch {
-	case '{':
-		s.next()
-		tok = token.LBRACE
-		// push Go mode onto the stack
-		s.goxState.push(GO)
-	case '<':
-		s.next()
-		switch {
-		case s.ch == '/':
-			tok = token.CTAG
-			lit = s.scanCTag()
-			// pop state
-			err := s.goxState.pop()
-			if err != nil {
-				s.error(s.offset, err.Error())
-				tok = token.ILLEGAL
-			}
-			// insert semi if we've popped into go mode
-			// (needed for "asdf := <div></div>" lines)
-			if s.goxState.mode == GO {
-				s.insertSemi = true
-			}
-		case isLetter(s.ch) == true:
-			tok = token.OTAG
-			// push gox-tag
-			s.goxState.push(GOX_TAG)
-		}
-	default:
-		// Parse base words
-		offs := s.offset
-		for {
-			if s.ch < 0 {
-				s.error(offs, "end of file during gox tag")
-				tok = token.ILLEGAL
-				return
-			}
-			if s.cj == '{' || s.ch == '<' {
-				break
-			}
-			s.next()
-		}
-		lit = string(s.src[offs:s.offset])
-		tok = token.BARE_WORDS
-	}
-	// Save the last token for gox
-	s.lastToken = tok
-	return
-}
-
-func (s *Scanner) scanGoxTagMode() (pos token.Pos, tok token.Token, lit string) {
-	s.insertSemi = false
-	s.skipWhitespace()
-
-	// current token start
-	pos = s.file.Pos(s.offset)
-	switch ch := s.ch; {
-	case isLetter(ch):
-		lit = s.scanIdentifier()
-		tok = token.IDENT
-	default:
-		s.next()
-		switch ch {
-		case -1:
-			s.error(s.offset, "reached illegal EOF in gox tag")
-		case '=':
-			tok = token.ASSIGN
-		case '{':
-			tok = token.LBRACE
-			// push Go mode onto the stack
-			s.goxState.push(GO)
-		case '"':
-			tok = token.STRING
-			// TODO(danny) Escape gox strings with XML rules
-			lit = s.scanString()
-		case '>':
-			tok = token.OTAG_END
-			// Pop stack and push bare words onto stack
-			err := s.goxState.pop()
-			s.goxState.push(BARE_WORDS)
-			if err != nil {
-				s.error(s.offset, err.Error())
-			}
-		case '/':
-			if s.ch == '>' {
-				s.next()
-				// TODO make them supported
-				tok = token.OTAG_SELF_CLOSE
-				err := s.goxState.pop()
-				if err != nil {
-					s.error(s.offset, err.Error())
-				}
-				s.insertSemi = true
-			}
-		default:
-			// next reports unexpected BOMs - don't repeat
-			if ch != bom {
-				s.error(s.file.Offset(pos), fmt.Sprintf("illegal character %#U", ch))
-			}
-			tok = token.ILLEGAL
-			lit = string(ch)
-		}
-	}
-
-	// Save the last token for gox
-	s.lastToken = tok
+	pos, tok, lit = f()
 
 	return
 }
@@ -1186,7 +927,7 @@ scanAgain:
 			insertSemi = true
 			tok = token.IDENT
 		}
-	case '0' <= ch && ch <= '9':
+	case isDecimal(ch) || ch == '.' && isDecimal(rune(s.peek())):
 		insertSemi = true
 		tok, lit = s.scanNumber()
 	default:
@@ -1221,17 +962,12 @@ scanAgain:
 		case ':':
 			tok = s.switch2(token.COLON, token.DEFINE)
 		case '.':
-			if '0' <= s.ch && s.ch <= '9' {
-				insertSemi = true
-				tok, lit = s.scanNumber()
-			} else if s.ch == '.' {
+			// fractions starting with a '.' are handled by outer switch
+			tok = token.PERIOD
+			if s.ch == '.' && s.peek() == '.' {
 				s.next()
-				if s.ch == '.' {
-					s.next()
-					tok = token.ELLIPSIS
-				}
-			} else {
-				tok = token.PERIOD
+				s.next() // consume last '.'
+				tok = token.ELLIPSIS
 			}
 		case ',':
 			tok = token.COMMA
@@ -1348,6 +1084,131 @@ scanAgain:
 	}
 
 	return
+}
+
+func (s *Scanner) scanBareWordsMode() (pos token.Pos, tok token.Token, lit string) {
+	s.insertSemi = false
+	// Whitespace matters in Bare Words mode, so do not call s.skipWhitespace()
+
+	// current token start
+	pos = s.file.Pos(s.offset)
+
+	switch s.ch {
+	case '{':
+		s.next()
+		tok = token.LBRACE
+		// push Go mode onto the stack
+		s.goxState.push(GO)
+	case '<':
+		s.next()
+		switch {
+		case s.ch == '/':
+			tok = token.CTAG
+			lit = s.scanCTag()
+			// pop state
+			err := s.goxState.pop()
+			if err != nil {
+				s.error(s.offset, err.Error())
+				tok = token.ILLEGAL
+			}
+			// insert semi if we've popped into go mode
+			// (needed for "asdf := <div></div>" lines)
+			if s.goxState.mode == GO {
+				s.insertSemi = true
+			}
+		case isLetter(s.ch):
+			tok = token.OTAG
+			// push gox-tag
+			s.goxState.push(GOX_TAG)
+		}
+	default:
+		// Parse base words
+		offs := s.offset
+		for {
+			if s.ch < 0 {
+				s.error(offs, "end of file during gox tag")
+				tok = token.ILLEGAL
+				s.goxState.pop()
+				return
+			}
+			if s.ch == '{' || s.ch == '<' {
+				break
+			}
+			s.next()
+		}
+		lit = string(s.src[offs:s.offset])
+		tok = token.BARE_WORDS
+	}
+	// Save the last token for gox
+	s.lastToken = tok
+	return
+}
+
+func (s *Scanner) scanGoxTagMode() (pos token.Pos, tok token.Token, lit string) {
+	s.insertSemi = false
+	s.skipWhitespace()
+
+	// current token start
+	pos = s.file.Pos(s.offset)
+	switch ch := s.ch; {
+	case isLetter(ch):
+		lit = s.scanIdentifier()
+		tok = token.IDENT
+	default:
+		s.next()
+		switch ch {
+		case -1:
+			s.error(s.offset, "reached illegal EOF in gox tag")
+		case '=':
+			tok = token.ASSIGN
+		case '{':
+			tok = token.LBRACE
+			// push Go mode onto the stack
+			s.goxState.push(GO)
+		case '"':
+			tok = token.STRING
+			// TODO(danny) Escape gox strings with XML rules
+			lit = s.scanString()
+		case '>':
+			tok = token.OTAG_END
+			// Pop stack and push bare words onto stack
+			err := s.goxState.pop()
+			s.goxState.push(BARE_WORDS)
+			if err != nil {
+				s.error(s.offset, err.Error())
+			}
+		case '/':
+			if s.ch == '>' {
+				s.next()
+				// TODO make them supported
+				tok = token.OTAG_SELF_CLOSE
+				err := s.goxState.pop()
+				if err != nil {
+					s.error(s.offset, err.Error())
+				}
+				s.insertSemi = true
+			}
+		default:
+			// next reports unexpected BOMs - don't repeat
+			if ch != bom {
+				s.error(s.file.Offset(pos), fmt.Sprintf("illegal character %#U", ch))
+			}
+			tok = token.ILLEGAL
+			s.goxState.pop()
+			lit = string(ch)
+		}
+	}
+
+	// Save the last token for gox
+	s.lastToken = tok
+
+	return
+}
+
+func (s *Scanner) RecoverFromError() {
+	s.goxState.pop()
+	s.goxState.pop()
+	s.goxState.pop()
 }
 
 // GoxLegal returns whether a gox tag (<XML syntax>) can follow the given token.

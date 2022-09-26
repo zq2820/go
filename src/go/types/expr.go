@@ -15,6 +15,16 @@ import (
 	"math"
 )
 
+var goxExpr = &ast.CallExpr{
+	Fun: &ast.SelectorExpr{
+		X: &ast.Ident{Name: "react"},
+		Sel: &ast.Ident{Name: "Div"},
+	},
+	Args: []ast.Expr{
+		&ast.Ident{Name: "nil"},
+	},
+}
+
 /*
 Basic algorithm:
 
@@ -547,7 +557,8 @@ func (check *Checker) updateExprType0(parent, x ast.Expr, typ Type, final bool) 
 			check.updateExprType0(x, x.X, typ, final)
 			check.updateExprType0(x, x.Y, typ, final)
 		}
-
+	case *ast.GoxExpr:
+		// TODO: why arrive here
 	default:
 		unreachable()
 	}
@@ -1641,7 +1652,26 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		// times the same expression and type are recorded. It is also not a
 		// performance issue because we only reach here for composite literal
 		// types, which are comparatively rare.
-
+	case *ast.GoxExpr:
+		if len(e.Attrs) > 0 {
+			for _, expr := range e.Attrs {
+				if goExpr, ok := expr.Rhs.(*ast.GoExpr); ok {
+					check.exprInternal(x, goExpr, hint)
+				} else if basicLit, ok := expr.Rhs.(*ast.BasicLit); ok {
+					check.exprInternal(x, basicLit, hint)
+				}
+			}
+		}
+		for _, child := range e.X {
+			if next, ok := child.(*ast.GoxExpr); ok {
+				check.exprInternal(x, next, hint)
+			} else if next, ok := child.(*ast.GoExpr); ok {
+				check.exprInternal(x, next, hint)
+			}
+		}
+		check.exprInternal(x, goxExpr, hint)
+	case *ast.GoExpr:
+		check.exprInternal(x, e.X, hint)
 	default:
 		panic(fmt.Sprintf("%s: unknown expression type %T", check.fset.Position(e.Pos()), e))
 	}

@@ -146,6 +146,7 @@ func (t *Interface) Complete() *Interface {
 
 func (t *Interface) Underlying() Type { return t }
 func (t *Interface) String() string   { return TypeString(t, nil) }
+func (t *Interface) Obj() *TypeName {return t.obj}
 
 // ----------------------------------------------------------------------------
 // Implementation

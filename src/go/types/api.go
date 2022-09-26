@@ -62,6 +62,18 @@ func (err Error) Error() string {
 	return fmt.Sprintf("%s: %s", err.Fset.Position(err.Pos), err.Msg)
 }
 
+func NewError(fset *token.FileSet, pos token.Pos, msg string, soft bool, go116code errorCode, go116start, go116end token.Pos) Error {
+	return Error{
+		fset, 
+		pos,
+		msg,
+		soft,
+		go116code,
+		go116start,
+		go116end,
+	}
+}
+
 // An ArgumentError holds an error associated with an argument index.
 type ArgumentError struct {
 	Index int

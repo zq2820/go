@@ -18,14 +18,33 @@ package parser
 
 import (
 	"fmt"
+	"regexp"
 	"go/ast"
 	"go/internal/typeparams"
 	"go/scanner"
 	"go/token"
+	"reflect"
 	"strconv"
 	"strings"
 	"unicode"
 )
+
+type Stack[T any] struct {
+	el []T
+}
+
+func (s *Stack[T]) push(item T) {
+	s.el = append(s.el, item)
+}
+func (s *Stack[T]) pop() T {
+	top := s.el[len(s.el)-1]
+	s.el = s.el[0 : len(s.el)-1]
+	return top
+}
+func (s *Stack[T]) top() T {
+	top := s.el[len(s.el)-1]
+	return top
+}
 
 // The parser structure holds the parser's internal state.
 type parser struct {
@@ -60,6 +79,9 @@ type parser struct {
 	inRhs   bool // if set, the parser is parsing a rhs expression
 
 	imports []*ast.ImportSpec // list of imports
+
+	// gox tags
+	tagStack *Stack[string]
 }
 
 func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
@@ -73,6 +95,9 @@ func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mod
 
 	p.mode = mode
 	p.trace = mode&Trace != 0 // for convenience (p.trace is used frequently)
+
+	// int gox tags
+	p.tagStack = &Stack[string]{el: []string{}}
 	p.next()
 }
 
@@ -523,6 +548,166 @@ func (p *parser) parseTypeName(ident *ast.Ident) ast.Expr {
 	}
 
 	return ident
+}
+
+func (p *parser) parseGoxTag() ast.Expr {
+	if p.trace {
+		defer un(trace(p, "GoxTag"))
+	}
+
+	otag := p.expect(token.OTAG)
+
+	tagName := p.parseIdent()
+	p.tagStack.push(tagName.Name)
+
+	if p.tok == token.ILLEGAL {
+		p.error(p.pos, "Unexpected token in gox tag")
+		return nil
+	}
+
+	attrs := []*ast.GoxAttrStmt{}
+	for p.tok != token.OTAG_END && p.tok != token.OTAG_SELF_CLOSE {
+		if attr := p.parseGoxAttr(); attr != nil {
+			attrs = append(attrs, attr)
+		} else {
+			p.tok = token.ILLEGAL		
+			p.error(p.pos, "Unexpected gox attr")
+			return nil
+		}
+	}
+	// if a self closing tag, close
+	if p.tok == token.OTAG_SELF_CLOSE {
+		lit := p.lit
+		ctagpos := p.expect(token.OTAG_SELF_CLOSE)
+		p.tagStack.pop()
+		return &ast.GoxExpr{
+			Otag: otag, TagName: tagName,
+			Attrs: attrs, 
+			X: nil,
+			Ctag: &ast.CtagExpr{
+				Close: ctagpos,
+				Value: lit,
+			},
+		}
+	}
+	p.expect(token.OTAG_END)
+
+	p.exprLev++ // we're in the expression
+
+	var content []ast.Expr // tag contents
+
+	for p.tok != token.CTAG {
+		switch p.tok {
+		case token.LBRACE:
+			content = append(content, p.parseGoExpr())
+		case token.BARE_WORDS:
+			content = append(content, p.parseBareWords())
+		case token.OTAG:
+			content = append(content, p.parseGoxTag())
+		default:
+			p.error(p.pos, "Unexpected token in gox tag")
+			return nil
+		}
+	}
+
+	lit := p.lit
+	ctagpos := p.expect(token.CTAG)
+	ctag := &ast.CtagExpr{Close: ctagpos, Value: lit}
+	if len(lit) >= 3 && p.tagStack.pop() != lit[2:len(lit)-1] {
+		p.error(p.pos, "Tag literal not terminated")
+	}
+
+	p.exprLev--
+
+	return &ast.GoxExpr{Otag: otag, TagName: tagName, Attrs: attrs, X: content, Ctag: ctag}
+}
+
+func (p *parser) parseGoxAttr() *ast.GoxAttrStmt {
+	if p.trace {
+		defer un(trace(p, "GoxAttrStmt"))
+	}
+
+	lhs := p.parseIdent()
+	if p.tok != token.ASSIGN {
+		return &ast.GoxAttrStmt{Lhs: lhs, Rhs: &ast.GoExpr{
+			Lbrace: lhs.NamePos + 2,
+			X: &ast.Ident{
+				Name:    "true",
+				NamePos: lhs.NamePos + 3,
+			},
+			Rbrace: lhs.NamePos + 7,
+		}}
+	}
+	p.expect(token.ASSIGN)
+	var rhs ast.Expr
+	switch p.tok {
+	case token.LBRACE:
+		rhs = p.parseGoExpr()
+	case token.STRING:
+		rhs = p.parseRhs() // yeaaaah
+	default:
+		p.error(p.pos, "Encountered illegal attribute value in gox tag")
+	}
+
+	if basicLit, ok := rhs.(*ast.BasicLit); ok {
+		if basicLit.Value == "\"\"" {
+			return nil
+		}
+	}
+	if rhs == nil {
+		return nil
+	}
+	if goExpr, ok := rhs.(*ast.GoExpr); ok {
+		if goExpr == nil {
+			return nil
+		}
+	}
+
+	return &ast.GoxAttrStmt{Lhs: lhs, Rhs: rhs}
+}
+
+func (p *parser) parseBareWords() *ast.BareWordsExpr {
+	if p.trace {
+		defer un(trace(p, "BareWordsExpr"))
+	}
+
+	lit := p.lit
+	reg := regexp.MustCompile(`[\n\t]`)
+	lit = reg.ReplaceAllString(lit, "")
+
+	pos := p.expect(token.BARE_WORDS)
+
+	return &ast.BareWordsExpr{ValuePos: pos, Value: lit}
+}
+
+func (p *parser) parseGoExpr() *ast.GoExpr {
+	lPos := p.expect(token.LBRACE)
+	if p.tok == token.GTR {
+		p.scanner.RecoverFromError()
+		p.tok = token.EOF
+		p.error(p.pos, "Unexpected token >")
+		return nil
+	}
+	expr := p.parseRhs()
+
+	if p.tok != token.RBRACE {
+		p.scanner.RecoverFromError()
+		p.tok = token.EOF
+
+		p.error(p.pos, "Unexpected token EOF")		
+		return nil
+	}
+
+	rPos := p.expect(token.RBRACE)
+
+	if p.tok == token.ILLEGAL {
+		p.error(p.pos, "Unexpected token ILLEGAL")		
+		return nil
+	} else if _, ok := expr.(*ast.BadExpr); ok {
+		return &ast.GoExpr{Lbrace: lPos, X: expr, Rbrace: rPos}
+	} else {
+		return &ast.GoExpr{Lbrace: lPos, X: expr, Rbrace: rPos}
+	}
 }
 
 // "[" has already been consumed, and lbrack is its position.
@@ -1281,6 +1466,10 @@ func (p *parser) tryIdentOrType() ast.Expr {
 		typ := p.parseType()
 		rparen := p.expect(token.RPAREN)
 		return &ast.ParenExpr{Lparen: lparen, X: typ, Rparen: rparen}
+	case token.OTAG:
+		return p.parseGoxTag()
+	case token.BARE_WORDS:
+		return p.parseBareWords()
 	}
 
 	// no type found
@@ -1608,6 +1797,8 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.CompositeLit:
 	case *ast.ParenExpr:
 		panic("unreachable")
+	case *ast.GoxExpr:
+	case *ast.BareWordsExpr:
 	case *ast.SelectorExpr:
 	case *ast.IndexExpr:
 	case *ast.IndexListExpr:
@@ -1861,6 +2052,13 @@ func (p *parser) parseRhs() ast.Expr {
 	p.inRhs = true
 	x := p.checkExpr(p.parseExpr())
 	p.inRhs = old
+	if p.tok == token.ILLEGAL || p.tok == token.EOF {
+		p.scanner.RecoverFromError()
+		return &ast.BadExpr{
+			From: x.Pos(),
+			To: x.End(),
+		}
+	}
 	return x
 }
 
@@ -2881,6 +3079,9 @@ func (p *parser) parseFile() *ast.File {
 		}
 	}
 
+	name := reflect.ValueOf(p.file).Elem().FieldByName("name").String()
+	isJsx := strings.HasSuffix(name, ".x.go")
+
 	f := &ast.File{
 		Doc:      doc,
 		Package:  pos,
@@ -2888,11 +3089,13 @@ func (p *parser) parseFile() *ast.File {
 		Decls:    decls,
 		Imports:  p.imports,
 		Comments: p.comments,
+		IsJsx: 		isJsx,
 	}
 	var declErr func(token.Pos, string)
 	if p.mode&DeclarationErrors != 0 {
 		declErr = p.error
 	}
+
 	if p.mode&SkipObjectResolution == 0 {
 		resolveFile(f, p.file, declErr)
 	}

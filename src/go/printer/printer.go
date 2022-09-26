@@ -933,6 +933,16 @@ func (p *printer) print(args ...any) {
 			data = x.Name
 			impliedSemi = true
 			p.lastTok = token.IDENT
+		
+		case *ast.CtagExpr:
+			data = x.Value
+			impliedSemi = true
+			p.lastTok = token.CTAG
+			
+		case *ast.BareWordsExpr:
+			data = x.Value
+			impliedSemi = true
+			p.lastTok = token.ILLEGAL
 
 		case *ast.BasicLit:
 			data = x.Value
@@ -1283,6 +1293,7 @@ const (
 	TabIndent                  // use tabs for indentation independent of UseSpaces
 	UseSpaces                  // use spaces instead of tabs for alignment
 	SourcePos                  // emit //line directives to preserve original source positions
+	GoxToGo                    // transform gox to Go
 )
 
 // The mode below is not included in printer's public API because

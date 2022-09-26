@@ -32,6 +32,7 @@ const (
 	IMAG   // 123.45i
 	CHAR   // 'a'
 	STRING // "abc"
+	literal_end
 
 	// gox tokens
 	OTAG            // <div
@@ -152,9 +153,9 @@ var tokens = [...]string{
 	STRING: "STRING",
 
 	// gox tokens
-	OTAG:            "OTAG",
-	OTAG_END:        "OTAG_END",
-	OTAG_SELF_CLOSE: "OTAG_SELF_CLOSE",
+	OTAG:            "<",
+	OTAG_END:        ">",
+	OTAG_SELF_CLOSE: "/>",
 	CTAG:            "CTAG",
 	BARE_WORDS:      "BARE_WORDS",
 

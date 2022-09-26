@@ -360,6 +360,10 @@ func (f *File) Position(p Pos) (pos Position) {
 	return f.PositionFor(p, true)
 }
 
+func (f *File) Set() *FileSet {
+	return f.set
+}
+
 // -----------------------------------------------------------------------------
 // FileSet
 
@@ -406,6 +410,10 @@ func (s *FileSet) Base() int {
 	s.mutex.RUnlock()
 	return b
 
+}
+
+func (s *FileSet) Files() []*File {
+	return s.files
 }
 
 // AddFile adds a new file with a given filename, base offset, and file size

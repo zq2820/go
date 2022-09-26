@@ -937,6 +937,12 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		p.print(x.Rbrack, token.RBRACK)
 
 	case *ast.CallExpr:
+		if x.Element != nil {
+			p.goxExpr(x, depth)
+
+			return 
+		}
+
 		if len(x.Args) > 1 {
 			depth++
 		}
@@ -1029,6 +1035,12 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		}
 		p.print(blank)
 		p.expr(x.Value)
+	case *ast.GoxExpr:
+		p.goxExpr2(x, depth)
+	case *ast.GoExpr:
+		p.goExpr(x, depth)
+	case *ast.BareWordsExpr:
+		p.bareWordsExpr(x, depth)
 
 	default:
 		panic("unreachable")
@@ -1905,4 +1917,84 @@ func (p *printer) file(src *ast.File) {
 	p.expr(src.Name)
 	p.declList(src.Decls)
 	p.print(newline)
+}
+
+func (p *printer) goxExpr(expr *ast.CallExpr, depth int) {
+	if goxExpr, ok := expr.Element.(*ast.GoxExpr); ok {
+		p.print(token.OTAG)
+		p.print(goxExpr.TagName)
+
+		for _, attr := range goxExpr.Attrs {
+			basicLit, isBasicLit := attr.Rhs.(*ast.BasicLit)
+			p.print(blank)
+			p.print(attr.Lhs)
+			p.print(token.ASSIGN)
+			if !(isBasicLit && basicLit.Kind == token.STRING) {
+				p.print(token.LBRACE)
+			}
+			p.expr0(attr.Rhs, depth)
+			if !(isBasicLit && basicLit.Kind == token.STRING) {
+				p.print(token.RBRACE)
+			}
+		}
+
+		if goxExpr.Ctag.Value != "" && len(goxExpr.X) != 0 {
+			p.print(token.OTAG_END)
+			depth ++
+			for _, child := range goxExpr.X {
+				p.expr0(child, depth)
+			}
+			p.print(goxExpr.Ctag)
+		} else {
+			p.print(token.OTAG_SELF_CLOSE)
+		}
+	} else if goExpr, ok := expr.Element.(*ast.GoExpr); ok {
+		p.print(token.LBRACE)
+		p.expr0(goExpr.X, depth)
+		p.print(token.RBRACE)
+	} else if bareWordsExpr, ok := expr.Element.(*ast.BareWordsExpr); ok {
+		p.print(bareWordsExpr)
+	}
+}
+
+func (p *printer) goxExpr2(goxExpr *ast.GoxExpr, depth int) {
+	p.print(token.OTAG)
+	p.print(goxExpr.TagName)
+
+	for _, attr := range goxExpr.Attrs {
+		p.print(blank)
+		p.print(attr.Lhs)
+		p.print(token.ASSIGN)
+		p.expr0(attr.Rhs, depth)
+	}
+
+	if goxExpr.Ctag.Value != "" && len(goxExpr.X) != 0 {
+		p.print(token.OTAG_END)
+		depth ++
+
+		p.print(indent)
+		for _, child := range goxExpr.X {
+			p.linebreak(p.lineFor(child.Pos()), 1, ignore, false)
+			p.expr0(child, depth)
+		}
+		p.print(unindent)
+
+		if (len(goxExpr.X) > 0) {
+			p.linebreak(p.lineFor(goxExpr.Ctag.Pos()), 1, ignore, false)
+		}
+		p.print(goxExpr.Ctag)
+	} else {
+		p.print(blank)
+		p.print(token.OTAG_SELF_CLOSE)
+	}
+}
+
+func (p *printer) goExpr(goExpr *ast.GoExpr, depth int) {
+	p.print(token.LBRACE)
+	p.expr0(goExpr.X, depth)
+	p.print(token.RBRACE)
+}
+
+func (p *printer) bareWordsExpr(bareWordsExpr *ast.BareWordsExpr, depth int) {
+	p.print(bareWordsExpr)
 }
