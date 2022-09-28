@@ -82,7 +82,7 @@ func initParserMode() {
 func isGoFile(f fs.DirEntry) bool {
 	// ignore non-Go files
 	name := f.Name()
-	return !strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".go") && !f.IsDir()
+	return !strings.HasPrefix(name, ".") && (strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".gox")) && !f.IsDir()
 }
 
 // A sequencer performs concurrent tasks that may write output, but emits that

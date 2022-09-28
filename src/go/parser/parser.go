@@ -18,12 +18,12 @@ package parser
 
 import (
 	"fmt"
-	"regexp"
 	"go/ast"
 	"go/internal/typeparams"
 	"go/scanner"
 	"go/token"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -558,9 +558,16 @@ func (p *parser) parseGoxTag() ast.Expr {
 	otag := p.expect(token.OTAG)
 
 	tagName := p.parseIdent()
+
 	p.tagStack.push(tagName.Name)
 
-	if p.tok == token.ILLEGAL {
+	if p.tok == token.OTAG {
+		p.tagStack.pop()
+		return &ast.GoxExpr{Otag: otag, TagName: tagName, Attrs: []*ast.GoxAttrStmt{}, X: []ast.Expr{}, Ctag: &ast.CtagExpr{
+			Value: "",
+			Close: p.pos,
+		}}
+	} else if p.tok == token.ILLEGAL {
 		p.error(p.pos, "Unexpected token in gox tag")
 		return nil
 	}
@@ -570,9 +577,19 @@ func (p *parser) parseGoxTag() ast.Expr {
 		if attr := p.parseGoxAttr(); attr != nil {
 			attrs = append(attrs, attr)
 		} else {
-			p.tok = token.ILLEGAL		
-			p.error(p.pos, "Unexpected gox attr")
-			return nil
+			p.error(p.pos, "Unexpected token in gox tag")
+			p.tagStack.pop()
+			return &ast.GoxExpr{Otag: otag, TagName: tagName, Attrs: attrs, X: []ast.Expr{}, Ctag: &ast.CtagExpr{
+				Value: "",
+				Close: p.pos,
+			}}
+		}
+		if p.tok == token.OTAG {
+			p.tagStack.pop()
+			return &ast.GoxExpr{Otag: otag, TagName: tagName, Attrs: attrs, X: []ast.Expr{}, Ctag: &ast.CtagExpr{
+				Value: "",
+				Close: p.pos,
+			}}
 		}
 	}
 	// if a self closing tag, close
@@ -629,14 +646,17 @@ func (p *parser) parseGoxAttr() *ast.GoxAttrStmt {
 
 	lhs := p.parseIdent()
 	if p.tok != token.ASSIGN {
-		return &ast.GoxAttrStmt{Lhs: lhs, Rhs: &ast.GoExpr{
-			Lbrace: lhs.NamePos + 2,
-			X: &ast.Ident{
-				Name:    "true",
-				NamePos: lhs.NamePos + 3,
-			},
-			Rbrace: lhs.NamePos + 7,
-		}}
+		if p.tok == token.OTAG || p.tok == token.IDENT || p.tok == token.OTAG_END || p.tok == token.OTAG_SELF_CLOSE {
+			return &ast.GoxAttrStmt{Lhs: lhs, Rhs: &ast.GoExpr{
+				Lbrace: lhs.NamePos + 2,
+				X: &ast.Ident{
+					Name:    "true",
+					NamePos: lhs.End() + 3,
+				},
+				Rbrace: lhs.End() + 7,
+			}}
+		}
+		return nil
 	}
 	p.expect(token.ASSIGN)
 	var rhs ast.Expr
@@ -647,20 +667,7 @@ func (p *parser) parseGoxAttr() *ast.GoxAttrStmt {
 		rhs = p.parseRhs() // yeaaaah
 	default:
 		p.error(p.pos, "Encountered illegal attribute value in gox tag")
-	}
-
-	if basicLit, ok := rhs.(*ast.BasicLit); ok {
-		if basicLit.Value == "\"\"" {
-			return nil
-		}
-	}
-	if rhs == nil {
 		return nil
-	}
-	if goExpr, ok := rhs.(*ast.GoExpr); ok {
-		if goExpr == nil {
-			return nil
-		}
 	}
 
 	return &ast.GoxAttrStmt{Lhs: lhs, Rhs: rhs}
@@ -3080,7 +3087,7 @@ func (p *parser) parseFile() *ast.File {
 	}
 
 	name := reflect.ValueOf(p.file).Elem().FieldByName("name").String()
-	isJsx := strings.HasSuffix(name, ".x.go")
+	isJsx := strings.HasSuffix(name, ".gox")
 
 	f := &ast.File{
 		Doc:      doc,

@@ -1356,7 +1356,7 @@ HaveGoMod:
 func hasGoFiles(dir string) bool {
 	files, _ := os.ReadDir(dir)
 	for _, f := range files {
-		if !f.IsDir() && strings.HasSuffix(f.Name(), ".go") {
+		if !f.IsDir() && (strings.HasSuffix(f.Name(), ".go") || strings.HasSuffix(f.Name(), ".gox")) {
 			return true
 		}
 	}
@@ -2685,7 +2685,7 @@ func PackagesAndErrors(ctx context.Context, opts PackageOpts, patterns []string)
 		// Listing is only supported with all patterns referring to either:
 		// - Files that are part of the same directory.
 		// - Explicit package paths or patterns.
-		if strings.HasSuffix(p, ".go") {
+		if strings.HasSuffix(p, ".go") || strings.HasSuffix(p, ".gox") {
 			// We need to test whether the path is an actual Go file and not a
 			// package path or pattern ending in '.go' (see golang.org/issue/34653).
 			if fi, err := fsys.Stat(p); err == nil && !fi.IsDir() {
@@ -2900,7 +2900,7 @@ func GoFilesPackage(ctx context.Context, opts PackageOpts, gofiles []string) *Pa
 	modload.Init()
 
 	for _, f := range gofiles {
-		if !strings.HasSuffix(f, ".go") {
+		if !strings.HasSuffix(f, ".go") && !strings.HasSuffix(f, ".gox") {
 			pkg := new(Package)
 			pkg.Internal.Local = true
 			pkg.Internal.CmdlineFiles = true

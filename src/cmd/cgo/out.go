@@ -629,6 +629,8 @@ func (p *Package) writeOutput(f *File, srcfile string) {
 	base := srcfile
 	if strings.HasSuffix(base, ".go") {
 		base = base[0 : len(base)-3]
+	} else if strings.HasSuffix(base, ".gox") {
+		base = base[0 : len(base)-4]
 	}
 	base = filepath.Base(base)
 	fgo1 := creat(*objDir + base + ".cgo1.go")

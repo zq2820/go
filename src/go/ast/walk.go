@@ -397,7 +397,9 @@ func Walk(v Visitor, node Node) {
 	// gox statements
 	case *GoxAttrStmt:
 		Walk(v, n.Lhs)
-		Walk(v, n.Rhs)
+		if n.Rhs != nil {
+			Walk(v, n.Rhs)
+		}
 	default:
 		panic(fmt.Sprintf("ast.Walk: unexpected node type %T", n))
 	}

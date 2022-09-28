@@ -41,7 +41,7 @@ var html_h = regexp.MustCompile(`<h3 id="[^"]*">`)
 const html_endh = "</h3>\n"
 
 func isGoFile(fi fs.FileInfo) bool {
-	return strings.HasSuffix(fi.Name(), ".go") &&
+	return (strings.HasSuffix(fi.Name(), ".go") || strings.HasSuffix(fi.Name(), ".gox")) &&
 		!strings.HasSuffix(fi.Name(), "_test.go")
 }
 

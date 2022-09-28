@@ -17,7 +17,7 @@ import (
 func isGoFile(dir os.FileInfo) bool {
 	return !dir.IsDir() &&
 		!strings.HasPrefix(dir.Name(), ".") && // ignore .files
-		path.Ext(dir.Name()) == ".go"
+		(path.Ext(dir.Name()) == ".go" || path.Ext(dir.Name()) == ".gox")
 }
 
 func isPkgFile(dir os.FileInfo) bool {

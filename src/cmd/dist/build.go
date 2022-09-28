@@ -584,6 +584,7 @@ var deptab = []struct {
 var depsuffix = []string{
 	".s",
 	".go",
+	".gox",
 }
 
 // gentab records how to generate some trivial files.
@@ -708,7 +709,7 @@ func runInstall(pkg string, ch chan struct{}) {
 	// There do exist real C files beginning with _,
 	// so limit that check to just Go files.
 	files = filter(files, func(p string) bool {
-		return !strings.HasPrefix(p, ".") && (!strings.HasPrefix(p, "_") || !strings.HasSuffix(p, ".go"))
+		return !strings.HasPrefix(p, ".") && (!strings.HasPrefix(p, "_") || !strings.HasSuffix(p, ".go") || !strings.HasSuffix(p, ".gox"))
 	})
 
 	for _, dt := range deptab {
@@ -743,7 +744,7 @@ func runInstall(pkg string, ch chan struct{}) {
 		if !t.IsZero() && !strings.HasSuffix(p, ".a") && !shouldbuild(p, pkg) {
 			return false
 		}
-		if strings.HasSuffix(p, ".go") {
+		if strings.HasSuffix(p, ".go") || strings.HasSuffix(p, ".gox") {
 			gofiles = append(gofiles, p)
 		} else if strings.HasSuffix(p, ".s") {
 			sfiles = append(sfiles, p)

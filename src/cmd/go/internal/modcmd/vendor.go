@@ -366,7 +366,7 @@ func matchPotentialSourceFile(dir string, info fs.DirEntry) bool {
 			return false
 		}
 	}
-	if strings.HasSuffix(info.Name(), ".go") {
+	if strings.HasSuffix(info.Name(), ".go") || strings.HasSuffix(info.Name(), ".gox") {
 		f, err := fsys.Open(filepath.Join(dir, info.Name()))
 		if err != nil {
 			base.Fatalf("go: %v", err)

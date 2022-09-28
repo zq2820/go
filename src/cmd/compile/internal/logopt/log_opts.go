@@ -375,6 +375,8 @@ func writerForLSP(subdirpath, file string) io.WriteCloser {
 	lastdot := strings.LastIndex(basename, ".go")
 	if lastdot != -1 {
 		basename = basename[:lastdot]
+	} else if lastdot = strings.LastIndex(basename, ".gox"); lastdot != -1 {
+		basename = basename[:lastdot]
 	}
 	basename = pathEscape(basename)
 

@@ -187,7 +187,7 @@ func NewFromFiles(fset *token.FileSet, files []*ast.File, importPath string, opt
 			return nil, fmt.Errorf("file files[%d] is not found in the provided file set", i)
 		}
 		switch name := f.Name(); {
-		case strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go"):
+		case (strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".gox")) && !strings.HasSuffix(name, "_test.go"):
 			goFiles[name] = files[i]
 		case strings.HasSuffix(name, "_test.go"):
 			testGoFiles = append(testGoFiles, files[i])

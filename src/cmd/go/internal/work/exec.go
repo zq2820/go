@@ -90,7 +90,7 @@ func (b *Builder) Do(ctx context.Context, root *Action) {
 	// Write action graph, without timing information, in case we fail and exit early.
 	writeActionGraph := func() {
 		if file := cfg.DebugActiongraph; file != "" {
-			if strings.HasSuffix(file, ".go") {
+			if strings.HasSuffix(file, ".go") || strings.HasSuffix(file, ".gox") {
 				// Do not overwrite Go source code in:
 				//	go build -debug-actiongraph x.go
 				base.Fatalf("go: refusing to write action graph to %v\n", file)
@@ -1051,7 +1051,7 @@ func buildVetConfig(a *Action, srcfiles []string) {
 	// srcfiles does not include raw cgo files.
 	var gofiles, nongofiles []string
 	for _, name := range srcfiles {
-		if strings.HasSuffix(name, ".go") {
+		if strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".gox") {
 			gofiles = append(gofiles, name)
 		} else {
 			nongofiles = append(nongofiles, name)

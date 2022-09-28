@@ -1188,6 +1188,11 @@ func (s *Scanner) scanGoxTagMode() (pos token.Pos, tok token.Token, lit string) 
 				}
 				s.insertSemi = true
 			}
+		case '<':
+			s.goxState.pop()
+			s.lastToken = token.BARE_WORDS
+			tok = token.OTAG
+			s.goxState.push(GOX_TAG)
 		default:
 			// next reports unexpected BOMs - don't repeat
 			if ch != bom {

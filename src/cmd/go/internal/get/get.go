@@ -212,7 +212,7 @@ func downloadPaths(patterns []string) []string {
 		// Guard against 'go get x.go', a common mistake.
 		// Note that package and module paths may end with '.go', so only print an error
 		// if the argument has no slash or refers to an existing file.
-		if strings.HasSuffix(arg, ".go") {
+		if strings.HasSuffix(arg, ".go") || strings.HasSuffix(arg, ".gox") {
 			if !strings.Contains(arg, "/") {
 				base.Errorf("go: %s: arguments must be package or module paths", arg)
 				continue

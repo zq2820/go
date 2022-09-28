@@ -275,5 +275,5 @@ func visitFile(path string, f fs.DirEntry, err error) error {
 func isGoFile(f fs.DirEntry) bool {
 	// ignore non-Go files
 	name := f.Name()
-	return !f.IsDir() && !strings.HasPrefix(name, ".") && strings.HasSuffix(name, ".go")
+	return !f.IsDir() && !strings.HasPrefix(name, ".") && (strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".gox"))
 }

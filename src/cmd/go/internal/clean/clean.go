@@ -332,6 +332,9 @@ func clean(p *load.Package) {
 			// to an executable file.
 			base := name[:len(name)-len(".go")]
 			allRemove = append(allRemove, base, base+".exe")
+		} else if strings.HasSuffix(name, ".gox") {
+			base := name[:len(name)-len(".gox")]
+			allRemove = append(allRemove, base, base+".exe")
 		}
 	}
 

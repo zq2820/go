@@ -127,7 +127,7 @@ func main() {
 				return nil
 			}
 			name := info.Name()
-			if name == "go.mod" || strings.HasSuffix(name, ".go") {
+			if name == "go.mod" || strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".gox") {
 				data, err := os.ReadFile(path)
 				if err != nil {
 					return err
