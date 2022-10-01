@@ -1961,14 +1961,25 @@ func (p *printer) goxExpr2(goxExpr *ast.GoxExpr, depth int) {
 	p.print(token.OTAG)
 	p.print(goxExpr.TagName)
 
+	if len(goxExpr.Attrs) > 0 {
+		p.print(indent)
+	}
+
 	for _, attr := range goxExpr.Attrs {
-		p.print(blank)
+		p.print(newline)
 		p.print(attr.Lhs)
 		p.print(token.ASSIGN)
 		p.expr0(attr.Rhs, depth)
 	}
 
+	if len(goxExpr.Attrs) > 0 {
+		p.print(unindent)
+	}
+
 	if goxExpr.Ctag.Value != "" && len(goxExpr.X) != 0 {
+		if len(goxExpr.Attrs) > 0 {
+			p.print(newline)
+		}
 		p.print(token.OTAG_END)
 		depth ++
 
@@ -1984,7 +1995,11 @@ func (p *printer) goxExpr2(goxExpr *ast.GoxExpr, depth int) {
 		}
 		p.print(goxExpr.Ctag)
 	} else {
-		p.print(blank)
+		if len(goxExpr.Attrs) > 0 {
+			p.print(newline)
+		} else {
+			p.print(blank)
+		}
 		p.print(token.OTAG_SELF_CLOSE)
 	}
 }

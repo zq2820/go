@@ -330,7 +330,7 @@ type (
 
 	GoxExpr struct {
 		Otag    token.Pos      // position of <
-		TagName *Ident         // div
+		TagName Expr         // div
 		Attrs   []*GoxAttrStmt // props
 		X       []Expr         // expression(s) inside GoxTag or none
 		Ctag    *CtagExpr      // </asdf> or />
@@ -648,6 +648,17 @@ func (id *Ident) String() string {
 	return "<nil>"
 }
 
+func (expr *SelectorExpr) String() string {
+	ret := ""
+	if selectorExpr, ok := expr.X.(*SelectorExpr); ok {
+		ret += selectorExpr.String() 
+	} else if id, ok := expr.X.(*Ident); ok {
+		ret += id.String()
+	}
+
+	return ret + "." + expr.Sel.String()
+}
+
 // ----------------------------------------------------------------------------
 // Statements
 
@@ -717,8 +728,9 @@ type (
 
 	// GOX attribute
 	GoxAttrStmt struct {
-		Lhs *Ident
-		Rhs Expr // can be nil
+		Lhs 				*Ident
+		Rhs 				Expr // can be nil
+		IsEllipsis	bool // is ellipsis
 	}
 
 	// A GoStmt node represents a go statement.

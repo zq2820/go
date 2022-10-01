@@ -557,19 +557,32 @@ func (p *parser) parseGoxTag() ast.Expr {
 
 	otag := p.expect(token.OTAG)
 
-	tagName := p.parseIdent()
+	var tagName ast.Expr
+	tagName = p.parseIdent()
+	for p.tok == token.PERIOD {
+		p.next()
+		tagName = p.parseSelector(tagName)
+	}
 
-	p.tagStack.push(tagName.Name)
+	if selectorExpr, ok := tagName.(*ast.SelectorExpr); ok {
+		p.tagStack.push(selectorExpr.String())
+	} else if ident, ok := tagName.(*ast.Ident); ok {
+		p.tagStack.push(ident.String())
+	}
 
-	if p.tok == token.OTAG {
+	if p.tok == token.OTAG || p.tok == token.CTAG {
 		p.tagStack.pop()
 		return &ast.GoxExpr{Otag: otag, TagName: tagName, Attrs: []*ast.GoxAttrStmt{}, X: []ast.Expr{}, Ctag: &ast.CtagExpr{
 			Value: "",
 			Close: p.pos,
 		}}
-	} else if p.tok == token.ILLEGAL {
+	}  else if p.tok == token.ILLEGAL {
 		p.error(p.pos, "Unexpected token in gox tag")
-		return nil
+		p.tagStack.pop()
+		return &ast.GoxExpr{Otag: otag, TagName: tagName, Attrs: []*ast.GoxAttrStmt{}, X: []ast.Expr{}, Ctag: &ast.CtagExpr{
+			Value: "",
+			Close: p.pos,
+		}}
 	}
 
 	attrs := []*ast.GoxAttrStmt{}
@@ -584,7 +597,7 @@ func (p *parser) parseGoxTag() ast.Expr {
 				Close: p.pos,
 			}}
 		}
-		if p.tok == token.OTAG {
+		if p.tok == token.OTAG || p.tok == token.CTAG {
 			p.tagStack.pop()
 			return &ast.GoxExpr{Otag: otag, TagName: tagName, Attrs: attrs, X: []ast.Expr{}, Ctag: &ast.CtagExpr{
 				Value: "",
@@ -600,7 +613,7 @@ func (p *parser) parseGoxTag() ast.Expr {
 		return &ast.GoxExpr{
 			Otag: otag, TagName: tagName,
 			Attrs: attrs, 
-			X: nil,
+			X: []ast.Expr{},
 			Ctag: &ast.CtagExpr{
 				Close: ctagpos,
 				Value: lit,
@@ -623,7 +636,11 @@ func (p *parser) parseGoxTag() ast.Expr {
 			content = append(content, p.parseGoxTag())
 		default:
 			p.error(p.pos, "Unexpected token in gox tag")
-			return nil
+			p.tagStack.pop()
+			return &ast.GoxExpr{Otag: otag, TagName: tagName, Attrs: attrs, X: content, Ctag: &ast.CtagExpr{
+				Value: "",
+				Close: p.pos,
+			}}
 		}
 	}
 
@@ -646,7 +663,11 @@ func (p *parser) parseGoxAttr() *ast.GoxAttrStmt {
 
 	lhs := p.parseIdent()
 	if p.tok != token.ASSIGN {
-		if p.tok == token.OTAG || p.tok == token.IDENT || p.tok == token.OTAG_END || p.tok == token.OTAG_SELF_CLOSE {
+		if 	p.tok == token.OTAG || 
+			 	p.tok == token.CTAG || 
+			 	p.tok == token.IDENT || 
+				p.tok == token.OTAG_END || 
+				p.tok == token.OTAG_SELF_CLOSE {
 			return &ast.GoxAttrStmt{Lhs: lhs, Rhs: &ast.GoExpr{
 				Lbrace: lhs.NamePos + 2,
 				X: &ast.Ident{
@@ -654,7 +675,7 @@ func (p *parser) parseGoxAttr() *ast.GoxAttrStmt {
 					NamePos: lhs.End() + 3,
 				},
 				Rbrace: lhs.End() + 7,
-			}}
+			}, IsEllipsis: true}
 		}
 		return nil
 	}
@@ -669,6 +690,8 @@ func (p *parser) parseGoxAttr() *ast.GoxAttrStmt {
 		p.error(p.pos, "Encountered illegal attribute value in gox tag")
 		return nil
 	}
+
+
 
 	return &ast.GoxAttrStmt{Lhs: lhs, Rhs: rhs}
 }
@@ -687,7 +710,7 @@ func (p *parser) parseBareWords() *ast.BareWordsExpr {
 	return &ast.BareWordsExpr{ValuePos: pos, Value: lit}
 }
 
-func (p *parser) parseGoExpr() *ast.GoExpr {
+func (p *parser) parseGoExpr() ast.Expr {
 	lPos := p.expect(token.LBRACE)
 	if p.tok == token.GTR {
 		p.scanner.RecoverFromError()
@@ -699,10 +722,10 @@ func (p *parser) parseGoExpr() *ast.GoExpr {
 
 	if p.tok != token.RBRACE {
 		p.scanner.RecoverFromError()
-		p.tok = token.EOF
+		p.tok = token.ILLEGAL
 
-		p.error(p.pos, "Unexpected token EOF")		
-		return nil
+		p.error(p.pos, "Unexpected token in gox expr")		
+		return expr
 	}
 
 	rPos := p.expect(token.RBRACE)

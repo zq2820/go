@@ -1654,6 +1654,8 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		// types, which are comparatively rare.
 	case *ast.GoxExpr:
 		if len(e.Attrs) > 0 {
+			check.exprInternal(x, e.TagName, hint)
+
 			for _, expr := range e.Attrs {
 				if goExpr, ok := expr.Rhs.(*ast.GoExpr); ok {
 					check.exprInternal(x, goExpr, hint)

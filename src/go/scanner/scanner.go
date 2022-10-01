@@ -1030,6 +1030,11 @@ scanAgain:
 				}
 				tok = token.COMMENT
 				lit = comment
+			} else if s.ch == '>' {
+				s.goxState.pop()
+				insertSemi = s.insertSemi // preserve insertSemi info
+				tok = token.ILLEGAL
+				s.error(s.offset, "self close tag error")
 			} else {
 				tok = s.switch2(token.QUO, token.QUO_ASSIGN)
 			}
@@ -1162,9 +1167,18 @@ func (s *Scanner) scanGoxTagMode() (pos token.Pos, tok token.Token, lit string) 
 		case '=':
 			tok = token.ASSIGN
 		case '{':
-			tok = token.LBRACE
-			// push Go mode onto the stack
-			s.goxState.push(GO)
+			if s.lastToken == token.IDENT {
+				err := s.goxState.pop()
+				if err != nil {
+					s.error(s.offset, err.Error())
+				}
+				tok = token.BARE_WORDS
+				s.goxState.push(BARE_WORDS)
+			} else {
+				tok = token.LBRACE
+				// push Go mode onto the stack
+				s.goxState.push(GO)
+			}
 		case '"':
 			tok = token.STRING
 			// TODO(danny) Escape gox strings with XML rules
@@ -1173,10 +1187,10 @@ func (s *Scanner) scanGoxTagMode() (pos token.Pos, tok token.Token, lit string) 
 			tok = token.OTAG_END
 			// Pop stack and push bare words onto stack
 			err := s.goxState.pop()
-			s.goxState.push(BARE_WORDS)
 			if err != nil {
 				s.error(s.offset, err.Error())
 			}
+			s.goxState.push(BARE_WORDS)
 		case '/':
 			if s.ch == '>' {
 				s.next()
@@ -1187,20 +1201,49 @@ func (s *Scanner) scanGoxTagMode() (pos token.Pos, tok token.Token, lit string) 
 					s.error(s.offset, err.Error())
 				}
 				s.insertSemi = true
+			} else {
+				s.goxState.pop()
+				tok = token.OTAG_SELF_CLOSE
+				s.error(s.offset, "self close tag error")
 			}
 		case '<':
 			s.goxState.pop()
 			s.lastToken = token.BARE_WORDS
-			tok = token.OTAG
-			s.goxState.push(GOX_TAG)
-		default:
-			// next reports unexpected BOMs - don't repeat
-			if ch != bom {
-				s.error(s.file.Offset(pos), fmt.Sprintf("illegal character %#U", ch))
+			if s.ch != 47 {
+				tok = token.OTAG
+				s.goxState.push(GOX_TAG)
+			} else {
+				lit = s.scanCTag()
+				pos = s.file.Pos(s.offset)
+				tok = token.CTAG
+				// pop state
+				err := s.goxState.pop()
+				if err != nil {
+					s.error(s.offset, err.Error())
+					tok = token.ILLEGAL
+				}
+				// insert semi if we've popped into go mode
+				// (needed for "asdf := <div></div>" lines)
+				if s.goxState.mode == GO {
+					s.insertSemi = true
+				}
 			}
-			tok = token.ILLEGAL
-			s.goxState.pop()
-			lit = string(ch)
+		case '.':
+			tok = token.PERIOD
+		default:
+			// // next reports unexpected BOMs - don't repeat
+			// if ch != bom {
+			// 	s.error(s.file.Offset(pos), fmt.Sprintf("illegal character %#U", ch))
+			// }
+			// tok = token.ILLEGAL
+			// s.goxState.pop()
+			// lit = string(ch)
+			err := s.goxState.pop()
+			if err != nil {
+				s.error(s.offset, err.Error())
+			}
+			tok = token.BARE_WORDS
+			s.goxState.push(BARE_WORDS)
 		}
 	}
 
