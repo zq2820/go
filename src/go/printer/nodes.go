@@ -1187,7 +1187,8 @@ func (p *printer) stmtList(list []ast.Stmt, nindent int, nextIsRBrace bool) {
 func (p *printer) block(b *ast.BlockStmt, nindent int) {
 	p.print(b.Lbrace, token.LBRACE)
 	p.stmtList(b.List, nindent, true)
-	p.linebreak(p.lineFor(b.Rbrace), 1, ignore, true)
+	// p.linebreak(p.lineFor(b.Rbrace), 1, ignore, true)
+	p.print(newline)
 	p.print(b.Rbrace, token.RBRACE)
 }
 
@@ -1922,7 +1923,7 @@ func (p *printer) file(src *ast.File) {
 func (p *printer) goxExpr(expr *ast.CallExpr, depth int) {
 	if goxExpr, ok := expr.Element.(*ast.GoxExpr); ok {
 		p.print(token.OTAG)
-		p.print(goxExpr.TagName)
+		p.expr0(goxExpr.TagName, depth)
 
 		for _, attr := range goxExpr.Attrs {
 			basicLit, isBasicLit := attr.Rhs.(*ast.BasicLit)
@@ -1959,7 +1960,7 @@ func (p *printer) goxExpr(expr *ast.CallExpr, depth int) {
 
 func (p *printer) goxExpr2(goxExpr *ast.GoxExpr, depth int) {
 	p.print(token.OTAG)
-	p.print(goxExpr.TagName)
+	p.expr0(goxExpr.TagName, depth)
 
 	if len(goxExpr.Attrs) > 0 {
 		p.print(indent)

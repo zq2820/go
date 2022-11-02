@@ -61,8 +61,8 @@ func typeString(typ Type, qf Qualifier, debug bool) string {
 // WriteType writes the string representation of typ to buf.
 // The Qualifier controls the printing of
 // package-level objects, and may be nil.
-func WriteType(buf *bytes.Buffer, typ Type, qf Qualifier) {
-	newTypeWriter(buf, qf).typ(typ)
+func WriteType(buf *bytes.Buffer, typ Type, qf Qualifier, ignoreTrait ...bool) {
+	newTypeWriter(buf, qf, ignoreTrait...).typ(typ)
 }
 
 // WriteSignature writes the representation of the signature sig to buf,
@@ -74,21 +74,33 @@ func WriteSignature(buf *bytes.Buffer, sig *Signature, qf Qualifier) {
 }
 
 type typeWriter struct {
-	buf     *bytes.Buffer
-	seen    map[Type]bool
-	qf      Qualifier
-	ctxt    *Context       // if non-nil, we are type hashing
-	tparams *TypeParamList // local type parameters
-	debug   bool           // if true, write debug annotations
+	buf         *bytes.Buffer
+	seen        map[Type]bool
+	qf          Qualifier
+	ctxt        *Context       // if non-nil, we are type hashing
+	tparams     *TypeParamList // local type parameters
+	debug       bool           // if true, write debug annotations
+	ignoreTrait bool
 }
 
-func newTypeWriter(buf *bytes.Buffer, qf Qualifier) *typeWriter {
-	return &typeWriter{buf, make(map[Type]bool), qf, nil, nil, false}
+func newTypeWriter(buf *bytes.Buffer, qf Qualifier, ignoreTrait ...bool) *typeWriter {
+	var ignore = false
+	if len(ignoreTrait) > 0 {
+		ignore = ignoreTrait[0]
+	}
+
+	return &typeWriter{buf, make(map[Type]bool), qf, nil, nil, false, ignore}
 }
 
-func newTypeHasher(buf *bytes.Buffer, ctxt *Context) *typeWriter {
+func newTypeHasher(buf *bytes.Buffer, ctxt *Context, ignoreTrait ...bool) *typeWriter {
 	assert(ctxt != nil)
-	return &typeWriter{buf, make(map[Type]bool), nil, ctxt, nil, false}
+
+	var ignore = false
+	if len(ignoreTrait) > 0 {
+		ignore = ignoreTrait[0]
+	}
+
+	return &typeWriter{buf, make(map[Type]bool), nil, ctxt, nil, false, ignore}
 }
 
 func (w *typeWriter) byte(b byte) {
@@ -287,8 +299,8 @@ func (w *typeWriter) typ(typ Type) {
 		}
 		w.typeName(t.obj) // when hashing written for readability of the hash only
 		if t.targs != nil {
-			// instantiated type
-			w.typeList(t.targs.list())
+									// instantiated type
+									w.typeList(t.targs.list())
 		} else if w.ctxt == nil && t.TypeParams().Len() != 0 { // For type hashing, don't need to format the TypeParams
 			// parameterized type
 			w.tParamList(t.TypeParams().list())
@@ -355,6 +367,10 @@ func (w *typeWriter) typeSet(s *_TypeSet) {
 }
 
 func (w *typeWriter) typeList(list []Type) {
+	if w.ignoreTrait {
+		return
+	}
+
 	w.byte('[')
 	for i, typ := range list {
 		if i > 0 {
@@ -366,6 +382,10 @@ func (w *typeWriter) typeList(list []Type) {
 }
 
 func (w *typeWriter) tParamList(list []*TypeParam) {
+	if w.ignoreTrait {
+		return
+	}
+
 	w.byte('[')
 	var prev Type
 	for i, tpar := range list {

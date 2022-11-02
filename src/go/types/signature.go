@@ -19,6 +19,7 @@ type Signature struct {
 	// and store it in the Func Object) because when type-checking a function
 	// literal we call the general type checker which returns a general Type.
 	// We then unpack the *Signature and use the scope for the literal body.
+	Pkg  		 string					// if is gox, it will be valid.
 	rparams  *TypeParamList // receiver type parameters from left to right, or nil
 	tparams  *TypeParamList // type parameters from left to right, or nil
 	scope    *Scope         // function scope for package-local and non-instantiated signatures; nil otherwise

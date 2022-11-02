@@ -335,9 +335,9 @@ func NewFunc(pos token.Pos, pkg *Package, name string, sig *Signature) *Func {
 
 // FullName returns the package- or receiver-type-qualified name of
 // function or method obj.
-func (obj *Func) FullName() string {
+func (obj *Func) FullName(ignoreTrait ...bool) string {
 	var buf bytes.Buffer
-	writeFuncName(&buf, obj, nil)
+	writeFuncName(&buf, obj, nil, ignoreTrait...)
 	return buf.String()
 }
 
@@ -527,7 +527,7 @@ func (obj *Label) String() string    { return ObjectString(obj, nil) }
 func (obj *Builtin) String() string  { return ObjectString(obj, nil) }
 func (obj *Nil) String() string      { return ObjectString(obj, nil) }
 
-func writeFuncName(buf *bytes.Buffer, f *Func, qf Qualifier) {
+func writeFuncName(buf *bytes.Buffer, f *Func, qf Qualifier, ignoreTrait ...bool) {
 	if f.typ != nil {
 		sig := f.typ.(*Signature)
 		if recv := sig.Recv(); recv != nil {
@@ -539,7 +539,7 @@ func writeFuncName(buf *bytes.Buffer, f *Func, qf Qualifier) {
 				// Don't print it in full.
 				buf.WriteString("interface")
 			} else {
-				WriteType(buf, recv.Type(), qf)
+				WriteType(buf, recv.Type(), qf, ignoreTrait...)
 			}
 			buf.WriteByte(')')
 			buf.WriteByte('.')

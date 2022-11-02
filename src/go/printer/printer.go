@@ -942,7 +942,7 @@ func (p *printer) print(args ...any) {
 		case *ast.BareWordsExpr:
 			data = x.Value
 			impliedSemi = true
-			p.lastTok = token.ILLEGAL
+			p.lastTok = token.STRING
 
 		case *ast.BasicLit:
 			data = x.Value

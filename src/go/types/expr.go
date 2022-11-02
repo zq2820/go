@@ -1653,9 +1653,17 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		// performance issue because we only reach here for composite literal
 		// types, which are comparatively rare.
 	case *ast.GoxExpr:
-		if len(e.Attrs) > 0 {
-			check.exprInternal(x, e.TagName, hint)
+		var tagName string
+		if selectorExpr, ok := e.TagName.(*ast.SelectorExpr); ok {
+			tagName = selectorExpr.String()
+		} else if ident, ok := e.TagName.(*ast.Ident); ok {
+			tagName = ident.String()
+		}
 
+		if !IsHostElement(tagName) {
+			check.exprInternal(x, e.TagName, hint)
+		}
+		if len(e.Attrs) > 0 {
 			for _, expr := range e.Attrs {
 				if goExpr, ok := expr.Rhs.(*ast.GoExpr); ok {
 					check.exprInternal(x, goExpr, hint)
@@ -1674,6 +1682,7 @@ func (check *Checker) exprInternal(x *operand, e ast.Expr, hint Type) exprKind {
 		check.exprInternal(x, goxExpr, hint)
 	case *ast.GoExpr:
 		check.exprInternal(x, e.X, hint)
+	case *ast.BareWordsExpr:
 	default:
 		panic(fmt.Sprintf("%s: unknown expression type %T", check.fset.Position(e.Pos()), e))
 	}

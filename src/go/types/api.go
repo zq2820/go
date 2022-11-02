@@ -492,3 +492,57 @@ func Identical(x, y Type) bool {
 func IdenticalIgnoreTags(x, y Type) bool {
 	return identical(x, y, false, nil)
 }
+
+
+// Is JSX HostComponent 
+func IsHostElement(el string) bool {
+	switch el {
+	case "A":
+	case "Abbr":
+	case "Article":
+	case "Aside":
+	case "B":
+	case "Br":
+	case "Button":
+	case "Caption":
+	case "Code":
+	case "Div":
+	case "Em":
+	case "Footer":
+	case "Form":
+	case "H1":
+	case "H2":
+	case "H3":
+	case "H4":
+	case "H5":
+	case "H6":
+	case "Header":
+	case "Hr":
+	case "I":
+	case "IFrame":
+	case "Img":
+	case "Input":
+	case "Label":
+	case "Li":
+	case "Main":
+	case "Option":
+	case "P":
+	case "Pre":
+	case "Select":
+	case "Span":
+	case "Strike":
+	case "Sup":
+	case "Table":
+	case "Tbody":
+	case "Td":
+	case "TextArea":
+	case "Th":
+	case "Thead":
+	case "Tr":
+	case "Ul":
+	default:
+		return false
+	}
+
+	return true
+}

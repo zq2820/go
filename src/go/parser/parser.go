@@ -703,11 +703,11 @@ func (p *parser) parseBareWords() *ast.BareWordsExpr {
 
 	lit := p.lit
 	reg := regexp.MustCompile(`[\n\t]`)
-	lit = reg.ReplaceAllString(lit, "")
+	filterLit := reg.ReplaceAllString(lit, "")
 
-	pos := p.expect(token.BARE_WORDS)
+	pos := p.expect(token.BARE_WORDS) + token.Pos(len(lit) - len(filterLit))
 
-	return &ast.BareWordsExpr{ValuePos: pos, Value: lit}
+	return &ast.BareWordsExpr{ValuePos: pos, Value: filterLit}
 }
 
 func (p *parser) parseGoExpr() ast.Expr {
